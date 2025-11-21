@@ -1,0 +1,10 @@
+{
+  "name": "timestamp-endpoint",
+  "version": "1.0.0",
+  "description": "Vercel serverless endpoint to log timestamps into Google Sheets",
+  "main": "api/timestamp.js",
+  "license": "MIT",
+  "dependencies": {
+    "googleapis": "^118.0.0"
+  }
+}
