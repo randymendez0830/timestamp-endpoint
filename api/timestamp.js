@@ -23,8 +23,13 @@ export default async function handler(req, res) {
 
     const sheets = google.sheets({ version: "v4", auth });
 
-    // 3. Generate timestamp
-    const timestamp = new Date().toISOString();
+    // 3. Generate timestamp in New York timezone
+    const now = new Date();
+    const timestamp = new Date(
+      now.toLocaleString("en-US", { timeZone: "America/New_York" })
+    )
+      .toISOString()
+      .replace("Z", ""); // remove the UTC marker
 
     // 4. Append timestamp to column K in tab "Schedule"
     await sheets.spreadsheets.values.append({
