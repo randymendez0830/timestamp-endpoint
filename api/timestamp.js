@@ -1,57 +1,23 @@
-import { google } from "googleapis";
-
 export default async function handler(req, res) {
   try {
-    // 1. Load environment variables
-    const serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_KEY);
-    const sheetId = process.env.SHEET_ID;
-
-    if (!serviceAccount || !sheetId) {
-      return res.status(500).json({
-        timestamp: null,
-        error: "Missing GOOGLE_SERVICE_KEY or SHEET_ID environment variable",
-      });
+    // Accept BOTH GET and POST
+    if (req.method !== "GET" && req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
     }
 
-    // 2. Auth with Google Sheets
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: serviceAccount.client_email,
-        private_key: serviceAccount.private_key.replace(/\\n/g, "\n"),
-      },
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
-
-    const sheets = google.sheets({ version: "v4", auth });
-
-    // 3. Generate timestamp in New York timezone
+    // Generate timestamp in New York timezone
     const now = new Date();
-    const timestamp = new Date(
-      now.toLocaleString("en-US", { timeZone: "America/New_York" })
-    )
-      .toISOString()
-      .replace("Z", "");
+    const nyString = now.toLocaleString("en-US", { timeZone: "America/New_York" });
+    const timestamp = new Date(nyString).toISOString();
 
-    // 4. Append timestamp to column A (Schedule)
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetId,
-      range: "Schedule!A:A",
-      valueInputOption: "RAW",
-      requestBody: {
-        values: [[timestamp]],
-      },
-    });
-
-    // 5. Always return a valid JSON object
+    // Return REQUIRED JSON payload for Vapi
     return res.status(200).json({
-      timestamp,
       success: true,
+      timestamp: timestamp
     });
+
   } catch (error) {
     console.error("Timestamp Error:", error);
-    return res.status(500).json({
-      timestamp: null,
-      error: error.message,
-    });
+    return res.status(500).json({ error: "Server error" });
   }
 }
