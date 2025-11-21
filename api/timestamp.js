@@ -2,42 +2,68 @@ import { google } from "googleapis";
 
 export default async function handler(req, res) {
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Only POST allowed" });
-    }
-
-    // Load Google credentials from environment variables
-    const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-
-    if (!clientEmail || !privateKey || !spreadsheetId) {
-      return res.status(500).json({ error: "Missing Google Sheets credentials" });
-    }
-
-    const auth = new google.auth.JWT({
-      email: clientEmail,
-      key: privateKey,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
-
-    const sheets = google.sheets({ version: "v4", auth });
-
-    // Log timestamp
     const timestamp = new Date().toISOString();
+
+    // Load service account credentials from env var
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_KEY);
+
+    const client = new google.auth.JWT(
+      credentials.client_email,
+      null,
+      credentials.private_key,
+      ["https://www.googleapis.com/auth/spreadsheets"]
+    );
+
+    const sheets = google.sheets({ version: "v4", auth: client });
+
+    // Your sheet ID
+    const spreadsheetId = process.env.SHEET_ID;
+
+    // ADAS Schedule → Sheet name = "Schedule"
+    // Columns A → K
+    const range = "Schedule!A:K";
+
+    // Extract expected fields from the request
+    const {
+      shop = "",
+      ro_number = "",
+      vin = "",
+      vehicle_year = "",
+      vehicle_make = "",
+      vehicle_model = "",
+      system = "",
+      status = "",
+      tech = "",
+      notes = ""
+    } = req.query;
+
+    // Append 1 row into columns A → K
+    const row = [
+      shop,
+      ro_number,
+      vin,
+      vehicle_year,
+      vehicle_make,
+      vehicle_model,
+      system,
+      status,
+      tech,
+      notes,
+      timestamp // Column K (date)
+    ];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: "Sheet1!A:B",
-      valueInputOption: "USER_ENTERED",
+      range,
+      valueInputOption: "RAW",
       requestBody: {
-        values: [[timestamp]],
+        values: [row],
       },
     });
 
-    return res.status(200).json({ success: true, timestamp });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Server error", details: err.message });
+    return res.status(200).json({ success: true, data: row });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Failed to write timestamp." });
   }
 }
