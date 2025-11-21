@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   try {
     const timestamp = new Date().toISOString();
 
-    // Load service account credentials from env var
+    // Load service account credentials
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_KEY);
 
     const client = new google.auth.JWT(
@@ -16,52 +16,23 @@ export default async function handler(req, res) {
 
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    // Your sheet ID
+    // Your Google Sheet
     const spreadsheetId = process.env.SHEET_ID;
 
-    // ADAS Schedule → Sheet name = "Schedule"
-    // Columns A → K
-    const range = "Schedule!A:K";
+    // Column K = column 11 → "K:K"
+    const range = "Schedule!K:K";
 
-    // Extract expected fields from the request
-    const {
-      shop = "",
-      ro_number = "",
-      vin = "",
-      vehicle_year = "",
-      vehicle_make = "",
-      vehicle_model = "",
-      system = "",
-      status = "",
-      tech = "",
-      notes = ""
-    } = req.query;
-
-    // Append 1 row into columns A → K
-    const row = [
-      shop,
-      ro_number,
-      vin,
-      vehicle_year,
-      vehicle_make,
-      vehicle_model,
-      system,
-      status,
-      tech,
-      notes,
-      timestamp // Column K (date)
-    ];
-
+    // Append ONLY the timestamp
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range,
       valueInputOption: "RAW",
       requestBody: {
-        values: [row],
+        values: [[timestamp]],
       },
     });
 
-    return res.status(200).json({ success: true, data: row });
+    return res.status(200).json({ success: true, timestamp });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Failed to write timestamp." });
