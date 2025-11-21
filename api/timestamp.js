@@ -8,6 +8,7 @@ export default async function handler(req, res) {
 
     if (!serviceAccount || !sheetId) {
       return res.status(500).json({
+        timestamp: null,
         error: "Missing GOOGLE_SERVICE_KEY or SHEET_ID environment variable",
       });
     }
@@ -24,26 +25,32 @@ export default async function handler(req, res) {
     const sheets = google.sheets({ version: "v4", auth });
 
     // 3. Generate timestamp in New York timezone
-    const nyDateString = new Date().toLocaleString("en-US", {
-      timeZone: "America/New_York",
+    const now = new Date();
+    const timestamp = new Date(
+      now.toLocaleString("en-US", { timeZone: "America/New_York" })
+    )
+      .toISOString()
+      .replace("Z", "");
+
+    // 4. Append timestamp to column A (Schedule)
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: "Schedule!A:A",
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [[timestamp]],
+      },
     });
 
-    const localNYDate = new Date(nyDateString);
-
-    if (localNYDate.toString() === "Invalid Date") {
-      return res.status(500).json({ error: "Invalid Date" });
-    }
-
-    const timestamp = localNYDate.toISOString().replace("Z", "");
-
-    // 4. Respond with timestamp (no sheet write here)
+    // 5. Always return a valid JSON object
     return res.status(200).json({
-      success: true,
       timestamp,
+      success: true,
     });
   } catch (error) {
     console.error("Timestamp Error:", error);
     return res.status(500).json({
+      timestamp: null,
       error: error.message,
     });
   }
