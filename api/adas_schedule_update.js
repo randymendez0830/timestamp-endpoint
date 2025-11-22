@@ -1,98 +1,41 @@
-import { google } from "googleapis";
+// File: Code.gs
+// Endpoint: /api/adas_schedule_update
 
-export default async function handler(req, res) {
+function doPost(e) {
   try {
-    // Allow OPTIONS preflight
-    if (req.method === "OPTIONS") {
-      return res.status(200).send("OK");
-    }
+    const body = JSON.parse(e.postData.contents);
 
-    // Allow GET heartbeat
-    if (req.method === "GET") {
-      return res.status(200).json({ status: "ADAS schedule endpoint alive" });
-    }
+    // Sheet settings
+    const ss = SpreadsheetApp.openById('<YOUR_SHEET_ID>');
+    const sheet = ss.getSheetByName('ADAS_Schedule');
 
-    // Only POST writes to sheet
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
+    // Build row (Column A is already filled by timestamp)
+    const row = [
+      body.shop || "",
+      body.ro_number || "",
+      body.vin || "",
+      body.vehicle_year || "",
+      body.vehicle_make || "",
+      body.vehicle_model || "",
+      body.system || "",
+      body.status || "",
+      body.tech || "",
+      body.notes || ""
+    ];
 
-    // 1. Load environment variables
-    const serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_KEY);
-    const sheetId = process.env.SHEET_ID;
+    // Insert into ROW 2 (push existing data downward)
+    sheet.insertRowBefore(2);
 
-    if (!serviceAccount || !sheetId) {
-      return res.status(500).json({
-        error: "Missing GOOGLE_SERVICE_KEY or SHEET_ID environment variable",
-      });
-    }
+    // Write starting at Column B (because Column A is timestamp)
+    sheet.getRange(2, 2, 1, row.length).setValues([row]);
 
-    // 2. Google Sheets Auth
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: serviceAccount.client_email,
-        private_key: serviceAccount.private_key.replace(/\\n/g, "\n"),
-      },
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
+    return ContentService.createTextOutput(
+      JSON.stringify({ success: true })
+    ).setMimeType(ContentService.MimeType.JSON);
 
-    const sheets = google.sheets({ version: "v4", auth });
-
-    // 3. Convert timestamp → New York timezone
-    const now = new Date();
-    const timestamp = new Date(
-      now.toLocaleString("en-US", { timeZone: "America/New_York" })
-    )
-      .toISOString()
-      .replace("Z", "");
-
-    // 4. Extract fields from agent
-    const {
-      shop,
-      ro_number,
-      vin,
-      vehicle_year,
-      vehicle_make,
-      vehicle_model,
-      system,
-      status,
-      tech,
-      notes,
-    } = req.body;
-
-    // 5. Append row to Google Sheets
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetId,
-      range: "Schedule!A:K",
-      valueInputOption: "RAW",
-      requestBody: {
-        values: [[
-          shop || "",
-          ro_number || "",
-          vin || "",
-          vehicle_year || "",
-          vehicle_make || "",
-          vehicle_model || "",
-          system || "",
-          status || "",
-          tech || "",
-          notes || "",
-          timestamp,
-        ]],
-      },
-    });
-
-    return res.status(200).json({
-      success: true,
-      timestamp,
-      message: "Schedule row added successfully",
-    });
-
-  } catch (error) {
-    console.error("ADAS Schedule Update Error:", error);
-    return res.status(500).json({
-      error: error.message,
-      message: "Failed to update ADAS schedule",
-    });
+  } catch (err) {
+    return ContentService.createTextOutput(
+      JSON.stringify({ success: false, error: err.toString() })
+    ).setMimeType(ContentService.MimeType.JSON);
   }
 }
